@@ -39,10 +39,10 @@ export default function Home() {
 
   const fetchData = async () => {
     try {
-      const [linesRes, statsRes] = await Promise.all([
-        fetch('http://127.0.0.1:5000/api/lines'),
-        fetch('http://127.0.0.1:5000/api/stats')
-      ])
+const [linesRes, statsRes] = await Promise.all([
+  fetch('https://web-production-2afb5.up.railway.app/api/lines'),
+  fetch('https://web-production-2afb5.up.railway.app/api/stats')
+])
       const linesData = await linesRes.json()
       const statsData = await statsRes.json()
       setLines(linesData)
