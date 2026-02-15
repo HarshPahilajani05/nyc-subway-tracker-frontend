@@ -62,6 +62,7 @@ export default function Home() {
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [upvotedReports, setUpvotedReports] = useState<Set<number>>(new Set())
 
   const API = 'https://web-production-2afb5.up.railway.app'
 
@@ -120,8 +121,10 @@ export default function Home() {
   }
 
   const upvoteReport = async (id: number) => {
+    if (upvotedReports.has(id)) return
     try {
       await fetch(`${API}/api/reports/${id}/upvote`, { method: 'POST' })
+      setUpvotedReports(prev => new Set([...prev, id]))
       if (selectedLine) fetchReports(selectedLine)
     } catch (err) {
       console.error('Failed to upvote:', err)
@@ -135,7 +138,6 @@ export default function Home() {
     return `${mins} mins ago`
   }
 
-  // Merge API data with all lines
   const allLineCards = ALL_LINES.map(line => {
     const data = lines.find(l => l.line === line)
     return {
@@ -395,7 +397,12 @@ export default function Home() {
                         )}
                         <button
                           onClick={() => upvoteReport(report.id)}
-                          className="text-xs text-gray-500 hover:text-blue-400 transition-colors flex items-center gap-1"
+                          disabled={upvotedReports.has(report.id)}
+                          className={`text-xs transition-colors flex items-center gap-1 ${
+                            upvotedReports.has(report.id)
+                              ? 'text-blue-400 cursor-not-allowed'
+                              : 'text-gray-500 hover:text-blue-400'
+                          }`}
                         >
                           👍 <span>{report.upvotes} agree</span>
                         </button>
