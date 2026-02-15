@@ -112,7 +112,7 @@ const [linesRes, statsRes] = await Promise.all([
             </p>
           </div>
           <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <p className="text-gray-400 text-sm">Last Scrape</p>
+            <p className="text-gray-400 text-sm">Last Delay Recorded</p>
             <p className="text-lg font-bold text-green-400 mt-1">
               {new Date(stats.last_scrape).toLocaleTimeString()}
             </p>
