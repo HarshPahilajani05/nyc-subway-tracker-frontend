@@ -16,6 +16,8 @@ const LINE_COLORS: Record<string, string> = {
   'S': '#808183',
 }
 
+const ALL_LINES = ['1','2','3','4','5','6','7','A','C','E','B','D','F','M','G','J','Z','L','N','Q','R','W','S']
+
 const ISSUE_TYPES = [
   { value: 'major_delay', label: '🚨 Major Delay' },
   { value: 'minor_delay', label: '⚠️ Minor Delay' },
@@ -106,11 +108,7 @@ export default function Home() {
       await fetch(`${API}/api/reports`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          line: selectedLine,
-          issue_type: issueType,
-          description
-        })
+        body: JSON.stringify({ line: selectedLine, issue_type: issueType, description })
       })
       setSubmitted(true)
       fetchReports(selectedLine)
@@ -136,6 +134,19 @@ export default function Home() {
     if (mins === 1) return '1 min ago'
     return `${mins} mins ago`
   }
+
+  // Merge API data with all lines
+  const allLineCards = ALL_LINES.map(line => {
+    const data = lines.find(l => l.line === line)
+    return {
+      line,
+      total_delays: data?.total_delays ?? 0,
+      avg_delay: data?.avg_delay ?? '0.0',
+      max_delay: data?.max_delay ?? 0,
+      last_updated: data?.last_updated ?? '',
+      hasData: !!data
+    }
+  })
 
   useEffect(() => {
     fetchData()
@@ -201,7 +212,10 @@ export default function Home() {
       <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-8">
         <h2 className="text-xl font-bold mb-4">Most Delayed Lines (Last 24 Hours)</h2>
         {lines.length === 0 ? (
-          <p className="text-gray-400">No delay data yet - check back during rush hour!</p>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <p className="text-gray-400 mb-1">No delay data yet</p>
+            <p className="text-gray-600 text-sm">Check back during Monday morning rush hour!</p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={lines.slice(0, 10)}>
@@ -218,16 +232,20 @@ export default function Home() {
       </div>
 
       {/* Line Cards */}
-      <h2 className="text-xl font-bold mb-4">All Lines</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold">All Lines</h2>
+        <p className="text-gray-500 text-sm">Click any line to report or view issues</p>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {lines.map((line) => (
+        {allLineCards.map((line) => (
           <div
             key={line.line}
-            className="bg-gray-900 rounded-xl p-4 border border-gray-800 hover:border-gray-600 transition-colors"
+            className="bg-gray-900 rounded-xl p-4 border border-gray-800 hover:border-gray-600 transition-all hover:shadow-lg cursor-pointer"
+            onClick={() => openReports(line.line)}
           >
             <div className="flex items-center gap-3 mb-3">
               <div
-                className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
+                className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0"
                 style={{
                   backgroundColor: LINE_COLORS[line.line] || '#555',
                   color: ['N', 'Q', 'R', 'W'].includes(line.line) ? '#000' : '#fff'
@@ -237,32 +255,38 @@ export default function Home() {
               </div>
               <div>
                 <p className="font-bold">Line {line.line}</p>
-                <p className="text-gray-400 text-xs">{line.total_delays} delays today</p>
+                <p className={`text-xs ${line.total_delays > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {line.total_delays > 0 ? `${line.total_delays} delays today` : '✓ No delays today'}
+                </p>
               </div>
             </div>
             <div className="space-y-1 mb-3">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Avg delay</span>
-                <span className="text-yellow-400 font-medium">{line.avg_delay} min</span>
+                <span className={`font-medium ${line.hasData ? 'text-yellow-400' : 'text-gray-600'}`}>
+                  {line.hasData ? `${line.avg_delay} min` : '—'}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Max delay</span>
-                <span className="text-red-400 font-medium">{line.max_delay} min</span>
+                <span className={`font-medium ${line.hasData ? 'text-red-400' : 'text-gray-600'}`}>
+                  {line.hasData ? `${line.max_delay} min` : '—'}
+                </span>
               </div>
             </div>
-            <button
-              onClick={() => openReports(line.line)}
-              className="w-full text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg py-2 transition-colors"
-            >
+            <div className="w-full text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg py-2 text-center transition-colors">
               📣 Report / View Issues
-            </button>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Reports Modal */}
       {selectedLine && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedLine(null) }}
+        >
           <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-md max-h-[80vh] overflow-y-auto">
             <div className="p-6">
 
@@ -278,11 +302,14 @@ export default function Home() {
                   >
                     {selectedLine}
                   </div>
-                  <h3 className="text-xl font-bold">Line {selectedLine} Reports</h3>
+                  <div>
+                    <h3 className="text-xl font-bold">Line {selectedLine}</h3>
+                    <p className="text-gray-400 text-sm">Community Reports</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedLine(null)}
-                  className="text-gray-400 hover:text-white text-2xl"
+                  className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-800 transition-colors"
                 >
                   ×
                 </button>
@@ -291,16 +318,16 @@ export default function Home() {
               {/* Submit Report */}
               {!submitted ? (
                 <div className="mb-6">
-                  <p className="text-sm text-gray-400 mb-3">Report an issue right now:</p>
+                  <p className="text-sm font-medium text-gray-300 mb-3">What&apos;s happening right now?</p>
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {ISSUE_TYPES.map((type) => (
                       <button
                         key={type.value}
                         onClick={() => setIssueType(type.value)}
-                        className={`text-xs p-2 rounded-lg border transition-colors ${
+                        className={`text-xs p-2 rounded-lg border transition-colors text-left ${
                           issueType === type.value
                             ? 'border-blue-500 bg-blue-500 bg-opacity-20 text-white'
-                            : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                            : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-300'
                         }`}
                       >
                         {type.label}
@@ -310,56 +337,67 @@ export default function Home() {
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Add a note (optional) - e.g. stuck at Jay St for 10 mins"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-white placeholder-gray-500 resize-none h-20 mb-3"
+                    placeholder="Add a note (optional) — e.g. stuck at Jay St for 10 mins"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm text-white placeholder-gray-500 resize-none h-20 mb-3 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     onClick={submitReport}
                     disabled={submitting}
-                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded-lg py-2 text-sm font-medium transition-colors"
+                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg py-2.5 text-sm font-medium transition-colors"
                   >
                     {submitting ? 'Submitting...' : 'Submit Report'}
                   </button>
                 </div>
               ) : (
-                <div className="mb-6 bg-green-900 bg-opacity-30 border border-green-700 rounded-lg p-4 text-center">
-                  <p className="text-green-400 font-medium">✅ Report submitted!</p>
-                  <p className="text-gray-400 text-sm mt-1">Thanks for helping other commuters</p>
+                <div className="mb-6 bg-green-900 bg-opacity-30 border border-green-700 rounded-xl p-4 text-center">
+                  <p className="text-green-400 font-medium text-lg">✅ Report submitted!</p>
+                  <p className="text-gray-400 text-sm mt-1">Thanks for helping other commuters 🚇</p>
+                  <button
+                    onClick={() => setSubmitted(false)}
+                    className="mt-3 text-xs text-gray-500 hover:text-gray-300 underline"
+                  >
+                    Submit another
+                  </button>
                 </div>
               )}
 
+              {/* Divider */}
+              <div className="border-t border-gray-800 mb-4" />
+
               {/* Recent Reports */}
               <div>
-                <p className="text-sm text-gray-400 mb-3">
-                  Recent reports (last 2 hours):
+                <p className="text-sm font-medium text-gray-300 mb-3">
+                  Recent reports <span className="text-gray-500 font-normal">(last 2 hours)</span>
                 </p>
                 {reports.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-4">
-                    No reports yet - be the first!
-                  </p>
+                  <div className="text-center py-6">
+                    <p className="text-2xl mb-2">🟢</p>
+                    <p className="text-gray-400 text-sm">No issues reported</p>
+                    <p className="text-gray-600 text-xs mt-1">Be the first to report!</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {reports.map((report) => (
                       <div
                         key={report.id}
-                        className="bg-gray-800 rounded-lg p-3 border border-gray-700"
+                        className="bg-gray-800 rounded-xl p-3 border border-gray-700"
                       >
                         <div className="flex justify-between items-start mb-1">
                           <span className="text-sm font-medium">
                             {ISSUE_TYPES.find(t => t.value === report.issue_type)?.label || report.issue_type}
                           </span>
-                          <span className="text-gray-500 text-xs">
+                          <span className="text-gray-500 text-xs ml-2 flex-shrink-0">
                             {getTimeAgo(report.created_at)}
                           </span>
                         </div>
                         {report.description && (
-                          <p className="text-gray-400 text-xs mb-2">{report.description}</p>
+                          <p className="text-gray-400 text-xs mb-2 leading-relaxed">{report.description}</p>
                         )}
                         <button
                           onClick={() => upvoteReport(report.id)}
-                          className="text-xs text-gray-500 hover:text-blue-400 transition-colors"
+                          className="text-xs text-gray-500 hover:text-blue-400 transition-colors flex items-center gap-1"
                         >
-                          👍 {report.upvotes} agree
+                          👍 <span>{report.upvotes} agree</span>
                         </button>
                       </div>
                     ))}
