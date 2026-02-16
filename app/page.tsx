@@ -50,6 +50,7 @@ interface Report {
   upvotes: number
   created_at: string
 }
+
 function EmailSubscribe({ line, api }: { line: string; api: string }) {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
@@ -106,10 +107,11 @@ function EmailSubscribe({ line, api }: { line: string; api: string }) {
     </div>
   )
 }
+
 function getRushHourMessage() {
   const now = new Date()
   const hour = now.getHours()
-  const day = now.getDay() // 0 = Sunday, 6 = Saturday
+  const day = now.getDay()
 
   if (day === 0 || day === 6) return 'Check back on a weekday during rush hour!'
   if (hour < 7) return 'Check back during morning rush hour (7-9am)!'
@@ -118,6 +120,7 @@ function getRushHourMessage() {
   if (hour >= 16 && hour < 19) return 'Evening rush hour is now - data should appear shortly!'
   return 'Check back during rush hour tomorrow morning (7-9am)!'
 }
+
 export default function Home() {
   const [lines, setLines] = useState<LineData[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -125,6 +128,7 @@ export default function Home() {
   const [lastRefresh, setLastRefresh] = useState<string>('')
   const [selectedLine, setSelectedLine] = useState<string | null>(null)
   const [reports, setReports] = useState<Report[]>([])
+  const [recentReports, setRecentReports] = useState<Report[]>([])  // ✅ NEW
   const [issueType, setIssueType] = useState('minor_delay')
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -161,6 +165,17 @@ export default function Home() {
     }
   }
 
+  // ✅ NEW
+  const fetchRecentReports = async () => {
+    try {
+      const res = await fetch(`${API}/api/reports/recent?limit=8`)
+      const data = await res.json()
+      setRecentReports(data)
+    } catch (err) {
+      console.error('Failed to fetch recent reports:', err)
+    }
+  }
+
   const openReports = (line: string) => {
     setSelectedLine(line)
     setSubmitted(false)
@@ -180,6 +195,7 @@ export default function Home() {
       })
       setSubmitted(true)
       fetchReports(selectedLine)
+      fetchRecentReports()  // ✅ NEW
     } catch (err) {
       console.error('Failed to submit report:', err)
     } finally {
@@ -217,9 +233,14 @@ export default function Home() {
     }
   })
 
+  // ✅ UPDATED useEffect
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 60000)
+    fetchRecentReports()
+    const interval = setInterval(() => {
+      fetchData()
+      fetchRecentReports()
+    }, 60000)
     return () => clearInterval(interval)
   }, [])
 
@@ -299,6 +320,47 @@ export default function Home() {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* ✅ NEW — Community Feed */}
+      {recentReports.length > 0 && (
+        <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">🗣️ Live Community Reports</h2>
+            <span className="text-gray-500 text-xs">Last 2 hours · Click to view line</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {recentReports.map((report) => (
+              <div
+                key={report.id}
+                onClick={() => openReports(report.line)}
+                className="flex items-start gap-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 rounded-xl p-3 cursor-pointer transition-all"
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 mt-0.5"
+                  style={{
+                    backgroundColor: LINE_COLORS[report.line] || '#555',
+                    color: ['N', 'Q', 'R', 'W'].includes(report.line) ? '#000' : '#fff'
+                  }}
+                >
+                  {report.line}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-white">
+                      {ISSUE_TYPES.find(t => t.value === report.issue_type)?.label || report.issue_type}
+                    </span>
+                    <span className="text-gray-500 text-xs flex-shrink-0">{getTimeAgo(report.created_at)}</span>
+                  </div>
+                  {report.description && (
+                    <p className="text-gray-400 text-xs mt-0.5 truncate">{report.description}</p>
+                  )}
+                  <p className="text-gray-600 text-xs mt-1">👍 {report.upvotes} · Tap to open Line {report.line}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Line Cards */}
       <div className="flex items-center justify-between mb-4">
@@ -431,15 +493,15 @@ export default function Home() {
               )}
 
               {/* Email Subscription */}
-<div className="mb-4">
-  <p className="text-sm font-medium text-gray-300 mb-2">
-    🔔 Get notified when Line {selectedLine} is delayed
-  </p>
-  <EmailSubscribe line={selectedLine} api={API} />
-</div>
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-300 mb-2">
+                  🔔 Get notified when Line {selectedLine} is delayed
+                </p>
+                <EmailSubscribe line={selectedLine} api={API} />
+              </div>
 
-{/* Divider */}
-<div className="border-t border-gray-800 mb-4" />
+              {/* Divider */}
+              <div className="border-t border-gray-800 mb-4" />
 
               {/* Recent Reports */}
               <div>
