@@ -50,7 +50,62 @@ interface Report {
   upvotes: number
   created_at: string
 }
+function EmailSubscribe({ line, api }: { line: string; api: string }) {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState('')
 
+  const handleSubscribe = async () => {
+    if (!email || !email.includes('@')) {
+      setStatus('error')
+      setMessage('Please enter a valid email')
+      return
+    }
+    setStatus('loading')
+    try {
+      const res = await fetch(`${api}/api/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, line })
+      })
+      const data = await res.json()
+      setStatus('success')
+      setMessage(data.message || 'Subscribed!')
+    } catch {
+      setStatus('error')
+      setMessage('Something went wrong, try again')
+    }
+  }
+
+  if (status === 'success') {
+    return (
+      <div className="bg-blue-900 bg-opacity-30 border border-blue-700 rounded-lg p-3 text-center">
+        <p className="text-blue-400 text-sm">✅ {message}</p>
+        <p className="text-gray-500 text-xs mt-1">You'll get an email when Line {line} is delayed</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex gap-2">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && handleSubscribe()}
+        placeholder="your@email.com"
+        className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+      />
+      <button
+        onClick={handleSubscribe}
+        disabled={status === 'loading'}
+        className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded-lg px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap"
+      >
+        {status === 'loading' ? '...' : 'Notify Me'}
+      </button>
+    </div>
+  )
+}
 export default function Home() {
   const [lines, setLines] = useState<LineData[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -363,8 +418,16 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Divider */}
-              <div className="border-t border-gray-800 mb-4" />
+              {/* Email Subscription */}
+<div className="mb-4">
+  <p className="text-sm font-medium text-gray-300 mb-2">
+    🔔 Get notified when Line {selectedLine} is delayed
+  </p>
+  <EmailSubscribe line={selectedLine} api={API} />
+</div>
+
+{/* Divider */}
+<div className="border-t border-gray-800 mb-4" />
 
               {/* Recent Reports */}
               <div>
