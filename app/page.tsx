@@ -106,6 +106,18 @@ function EmailSubscribe({ line, api }: { line: string; api: string }) {
     </div>
   )
 }
+function getRushHourMessage() {
+  const now = new Date()
+  const hour = now.getHours()
+  const day = now.getDay() // 0 = Sunday, 6 = Saturday
+
+  if (day === 0 || day === 6) return 'Check back on a weekday during rush hour!'
+  if (hour < 7) return 'Check back during morning rush hour (7-9am)!'
+  if (hour >= 7 && hour < 10) return 'Rush hour is now - data should appear shortly!'
+  if (hour >= 10 && hour < 16) return 'Check back during evening rush hour (4-7pm)!'
+  if (hour >= 16 && hour < 19) return 'Evening rush hour is now - data should appear shortly!'
+  return 'Check back during rush hour tomorrow morning (7-9am)!'
+}
 export default function Home() {
   const [lines, setLines] = useState<LineData[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -271,7 +283,7 @@ export default function Home() {
         {lines.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <p className="text-gray-400 mb-1">No delay data yet</p>
-            <p className="text-gray-600 text-sm">Check back during Monday morning rush hour!</p>
+            <p className="text-gray-600 text-sm">{getRushHourMessage()}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
