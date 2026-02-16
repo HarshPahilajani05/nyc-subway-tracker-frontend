@@ -27,6 +27,16 @@ const ISSUE_TYPES = [
   { value: 'running_fine', label: '✅ Running Fine' },
 ]
 
+const ALERT_ICONS: Record<string, string> = {
+  delay: '⚠️',
+  suspended: '🚫',
+  stops_skipped: '⏭️',
+  express_to_local: '🐢',
+  reduced_service: '📉',
+  planned_work: '🔧',
+  service_change: '🔄',
+}
+
 interface LineData {
   line: string
   total_delays: number
@@ -48,6 +58,15 @@ interface Report {
   issue_type: string
   description: string
   upvotes: number
+  created_at: string
+}
+
+interface Alert {
+  id: number
+  line: string
+  alert_type: string
+  header: string
+  description: string
   created_at: string
 }
 
@@ -128,7 +147,9 @@ export default function Home() {
   const [lastRefresh, setLastRefresh] = useState<string>('')
   const [selectedLine, setSelectedLine] = useState<string | null>(null)
   const [reports, setReports] = useState<Report[]>([])
-  const [recentReports, setRecentReports] = useState<Report[]>([])  // ✅ NEW
+  const [recentReports, setRecentReports] = useState<Report[]>([])
+  const [alerts, setAlerts] = useState<Alert[]>([])
+  const [lineAlerts, setLineAlerts] = useState<Record<string, Alert[]>>({})
   const [issueType, setIssueType] = useState('minor_delay')
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -165,7 +186,6 @@ export default function Home() {
     }
   }
 
-  // ✅ NEW
   const fetchRecentReports = async () => {
     try {
       const res = await fetch(`${API}/api/reports/recent?limit=8`)
@@ -176,12 +196,42 @@ export default function Home() {
     }
   }
 
+  // ✅ NEW — fetch alerts for a specific line (used in modal)
+  const fetchLineAlerts = async (line: string) => {
+    try {
+      const res = await fetch(`${API}/api/alerts/${line}`)
+      const data = await res.json()
+      setAlerts(data)
+    } catch (err) {
+      console.error('Failed to fetch alerts:', err)
+    }
+  }
+
+  // ✅ NEW — fetch alerts for ALL lines (used on line cards)
+  const fetchAllAlerts = async () => {
+    try {
+      const results = await Promise.all(
+        ALL_LINES.map(line =>
+          fetch(`${API}/api/alerts/${line}`).then(r => r.json()).then(data => ({ line, data }))
+        )
+      )
+      const map: Record<string, Alert[]> = {}
+      results.forEach(({ line, data }) => {
+        if (data.length > 0) map[line] = data
+      })
+      setLineAlerts(map)
+    } catch (err) {
+      console.error('Failed to fetch all alerts:', err)
+    }
+  }
+
   const openReports = (line: string) => {
     setSelectedLine(line)
     setSubmitted(false)
     setDescription('')
     setIssueType('minor_delay')
     fetchReports(line)
+    fetchLineAlerts(line)
   }
 
   const submitReport = async () => {
@@ -195,7 +245,7 @@ export default function Home() {
       })
       setSubmitted(true)
       fetchReports(selectedLine)
-      fetchRecentReports()  // ✅ NEW
+      fetchRecentReports()
     } catch (err) {
       console.error('Failed to submit report:', err)
     } finally {
@@ -233,13 +283,14 @@ export default function Home() {
     }
   })
 
-  // ✅ UPDATED useEffect
   useEffect(() => {
     fetchData()
     fetchRecentReports()
+    fetchAllAlerts()
     const interval = setInterval(() => {
       fetchData()
       fetchRecentReports()
+      fetchAllAlerts()
     }, 60000)
     return () => clearInterval(interval)
   }, [])
@@ -321,7 +372,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* ✅ NEW — Community Feed */}
+      {/* Community Feed */}
       {recentReports.length > 0 && (
         <div className="bg-gray-900 rounded-xl p-6 border border-gray-800 mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -368,48 +419,69 @@ export default function Home() {
         <p className="text-gray-500 text-sm">Click any line to report or view issues</p>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {allLineCards.map((line) => (
-          <div
-            key={line.line}
-            className="bg-gray-900 rounded-xl p-4 border border-gray-800 hover:border-gray-600 transition-all hover:shadow-lg cursor-pointer"
-            onClick={() => openReports(line.line)}
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0"
-                style={{
-                  backgroundColor: LINE_COLORS[line.line] || '#555',
-                  color: ['N', 'Q', 'R', 'W'].includes(line.line) ? '#000' : '#fff'
-                }}
-              >
-                {line.line}
+        {allLineCards.map((line) => {
+          const activeAlerts = lineAlerts[line.line] || []
+          return (
+            <div
+              key={line.line}
+              className={`bg-gray-900 rounded-xl p-4 border transition-all hover:shadow-lg cursor-pointer ${
+                activeAlerts.length > 0
+                  ? 'border-yellow-600 hover:border-yellow-400'
+                  : 'border-gray-800 hover:border-gray-600'
+              }`}
+              onClick={() => openReports(line.line)}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0"
+                  style={{
+                    backgroundColor: LINE_COLORS[line.line] || '#555',
+                    color: ['N', 'Q', 'R', 'W'].includes(line.line) ? '#000' : '#fff'
+                  }}
+                >
+                  {line.line}
+                </div>
+                <div>
+                  <p className="font-bold">Line {line.line}</p>
+                  <p className={`text-xs ${line.total_delays > 0 ? 'text-red-400' : activeAlerts.length > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
+                    {line.total_delays > 0
+                      ? `${line.total_delays} delays today`
+                      : activeAlerts.length > 0
+                      ? `⚠️ MTA Alert`
+                      : '✓ No delays today'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-bold">Line {line.line}</p>
-                <p className={`text-xs ${line.total_delays > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  {line.total_delays > 0 ? `${line.total_delays} delays today` : '✓ No delays today'}
-                </p>
+
+              {/* ✅ NEW — Show MTA alert banner on card */}
+              {activeAlerts.length > 0 && (
+                <div className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg px-2 py-1.5 mb-3">
+                  <p className="text-yellow-400 text-xs leading-snug">
+                    {ALERT_ICONS[activeAlerts[0].alert_type] || '⚠️'} {activeAlerts[0].header.length > 60 ? activeAlerts[0].header.slice(0, 60) + '...' : activeAlerts[0].header}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1 mb-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Avg delay</span>
+                  <span className={`font-medium ${line.hasData ? 'text-yellow-400' : 'text-gray-600'}`}>
+                    {line.hasData ? `${line.avg_delay} min` : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Max delay</span>
+                  <span className={`font-medium ${line.hasData ? 'text-red-400' : 'text-gray-600'}`}>
+                    {line.hasData ? `${line.max_delay} min` : '—'}
+                  </span>
+                </div>
+              </div>
+              <div className="w-full text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg py-2 text-center transition-colors">
+                📣 Report / View Issues
               </div>
             </div>
-            <div className="space-y-1 mb-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Avg delay</span>
-                <span className={`font-medium ${line.hasData ? 'text-yellow-400' : 'text-gray-600'}`}>
-                  {line.hasData ? `${line.avg_delay} min` : '—'}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Max delay</span>
-                <span className={`font-medium ${line.hasData ? 'text-red-400' : 'text-gray-600'}`}>
-                  {line.hasData ? `${line.max_delay} min` : '—'}
-                </span>
-              </div>
-            </div>
-            <div className="w-full text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg py-2 text-center transition-colors">
-              📣 Report / View Issues
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Reports Modal */}
@@ -445,6 +517,28 @@ export default function Home() {
                   ×
                 </button>
               </div>
+
+              {/* ✅ NEW — MTA Alerts in modal */}
+              {alerts.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-sm font-medium text-gray-300 mb-2">🚨 MTA Service Alerts</p>
+                  <div className="space-y-2">
+                    {alerts.map((alert) => (
+                      <div
+                        key={alert.id}
+                        className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-xl p-3"
+                      >
+                        <p className="text-yellow-400 text-sm font-medium">
+                          {ALERT_ICONS[alert.alert_type] || '⚠️'} {alert.header}
+                        </p>
+                        {alert.description && (
+                          <p className="text-gray-400 text-xs mt-1 leading-relaxed">{alert.description}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Submit Report */}
               {!submitted ? (
