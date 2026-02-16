@@ -196,7 +196,6 @@ export default function Home() {
     }
   }
 
-  // ✅ NEW — fetch alerts for a specific line (used in modal)
   const fetchLineAlerts = async (line: string) => {
     try {
       const res = await fetch(`${API}/api/alerts/${line}`)
@@ -207,7 +206,6 @@ export default function Home() {
     }
   }
 
-  // ✅ NEW — fetch alerts for ALL lines (used on line cards)
   const fetchAllAlerts = async () => {
     try {
       const results = await Promise.all(
@@ -354,8 +352,13 @@ export default function Home() {
         <h2 className="text-xl font-bold mb-4">Most Delayed Lines (Last 24 Hours)</h2>
         {lines.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-gray-400 mb-1">No delay data yet</p>
+            <p className="text-gray-400 mb-1">No delay data recorded in last 24 hours</p>
             <p className="text-gray-600 text-sm">{getRushHourMessage()}</p>
+            {Object.keys(lineAlerts).length > 0 && (
+              <p className="text-yellow-400 text-sm mt-2">
+                ⚠️ Check line cards below for active MTA service alerts
+              </p>
+            )}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
@@ -453,7 +456,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* ✅ NEW — Show MTA alert banner on card */}
               {activeAlerts.length > 0 && (
                 <div className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg px-2 py-1.5 mb-3">
                   <p className="text-yellow-400 text-xs leading-snug">
@@ -518,7 +520,7 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* ✅ NEW — MTA Alerts in modal */}
+              {/* MTA Alerts in modal */}
               {alerts.length > 0 && (
                 <div className="mb-6">
                   <p className="text-sm font-medium text-gray-300 mb-2">🚨 MTA Service Alerts</p>
