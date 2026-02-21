@@ -156,7 +156,7 @@ export default function Home() {
   const [submitted, setSubmitted] = useState(false)
   const [upvotedReports, setUpvotedReports] = useState<Set<number>>(new Set())
 
-  const API = 'nyc-subway-tracker-backend-production.up.railway.app'
+  const API = 'https://nyc-subway-tracker-backend-production.up.railway.app'
 
   const fetchData = async () => {
     try {
